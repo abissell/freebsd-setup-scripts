@@ -213,7 +213,7 @@ if [ "$step" = "xorg" ]; then
   run_with_prompt "pkg install mkfontscale"
   if [ ! -f ".xinitrc" ]; then
     echo ".xinitrc file did not exist, will copy it from template and chown to $user:$user"
-    run_with_prompt "cp setup-files/xinitrc-template .xinitrc && chown $user:$user .xinitrc"
+    run_with_prompt "cp install-files/xinitrc-template .xinitrc && chown $user:$user .xinitrc"
   fi
 
   for font_dir in $(find /usr/local/share/fonts -maxdepth 1 -mindepth 1)
@@ -236,7 +236,7 @@ if [ "$step" = "fonts" ]; then
   read -p "Enter the filename portion for monospace font family (e.g. 'roboto-mono'): " mono_filename
   indexed_mono_filename="54-$mono_filename.conf"
   new_mono_avail_filename="/usr/local/etc/fonts/conf.avail/$indexed_mono_filename"
-  run_with_prompt "cp setup-files/54-font-family.conf $new_mono_avail_filename"
+  run_with_prompt "cp install-files/54-font-family.conf $new_mono_avail_filename"
   read -p "Enter the font family name as listed in fc-list (e.g. 'Roboto Mono'): " font_family
   echo "Editing the $new_mono_avail_filename file to point to font family $font_family:"
   run_with_prompt "sed -i '' 's/fontfamily/$font_family/g' $new_mono_avail_filename"
@@ -286,7 +286,7 @@ export TERMINAL="/usr/local/bin/urxvtc"' "$autostart_filename"
   echo "Note! Some defaults in this file may need to be adjusted."
   echo "To find the correct DPI for the file, start an X session"
   echo "with 'startx' and run 'xdpyinfo | grep -B2 resolution'"
-  run_with_prompt "cp setup-files/Xresources .Xresources && chown $user:$user .Xresources"
+  run_with_prompt "cp install-files/Xresources .Xresources && chown $user:$user .Xresources"
   set_step "configure-x-console"
   echo
 else
@@ -304,11 +304,11 @@ if [ "$step" = "configure-x-console" ]; then
       echo
     else
       echo "File was found but line was not in file."
-      run_with_prompt "echo >> /etc/X11/xorg.conf && cat setup-files/90-custom-kbd.conf >> /etc/X11/xorg.conf"
+      run_with_prompt "echo >> /etc/X11/xorg.conf && cat install-files/90-custom-kbd.conf >> /etc/X11/xorg.conf"
     fi
   else
     echo -n "File was not found, adding section to file ... "
-    run_with_prompt "cat setup-files/90-custom-kbd.conf >> /etc/X11/xorg.conf"
+    run_with_prompt "cat install-files/90-custom-kbd.conf >> /etc/X11/xorg.conf"
   fi
   run_with_prompt "pkg install mkfontscale"
   set_step "remap-left-capslock-to-ctrl"
