@@ -36,8 +36,8 @@ URxvt.tabbed.tab-fg:          3
 URxvt.tabbed.tab-bg:          0
 
 ! Fonts
-URxvt*font:                   xft:monospace:pixelsize=24
-URxvt*boldFont:               xft:monospace:pixelsize=24
+URxvt*font:                   xft:monospace:pixelsize=22
+URxvt*boldFont:               xft:monospace:pixelsize=22
 URxvt.letterSpace:            -1
 
 ! Colors

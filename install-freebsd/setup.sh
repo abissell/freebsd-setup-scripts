@@ -91,6 +91,18 @@ press_enter_to_continue
 run_with_prompt "ping -c 1 pkg.freebsd.org && pkg update && pkg upgrade"
 
 if [ "$step" = " " ]; then 
+  echo "Beginning 'operatorgroup' step."
+  echo "Adding user $user to 'operator' group to allow shutdown/reboot without sudo ..."
+  run_with_prompt "pw groupmod operator -m $user"
+  echo "The 'operator' group is now: $(pw groupshow operator)"
+  press_enter_to_continue
+  set_step "operatorgroup"
+else
+  echo "Skipping the 'operatorgroup' step since already completed."
+fi
+echo
+
+if [ "$step" = "operatorgroup" ]; then
   echo "Beginning 'videogroup' step."
   echo "Adding user $user to 'video' group for GPU acceleration ..."
   run_with_prompt "pw groupmod video -m $user"
@@ -164,29 +176,32 @@ if [ "$step" = "xorg" ]; then
   press_enter_to_continue
   run_with_prompt "pkg install nerd-fonts"
   press_enter_to_continue
-  echo 'Checking for line: Load "freetype" in "Module" section of /etc/X11/xorg.conf'
+  echo 'Checking for line: Load "freetype" in /etc/X11/xorg.conf'
   if [ -f "/etc/X11/xorg.conf" ]; then
     if [ $(grep -c 'Load "freetype"' /etc/X11/xorg.conf) -ne 0 ]; then
       echo "Line was already in file, will not add it."
       echo
     else
       echo "File was found but line was not in file."
-      echo "Please add the line:"
-      echo
-      echo '	Load "freetype"'
-      echo
-      echo "to the section:"
-      echo
-      echo 'Section "Module"'
-      echo "..."
-      echo "EndSection"
-      echo
-      echo "of /etc/X11/xorg.conf (create the section if necessary)"
-      echo "and resume this script."
-      echo 
-      printf "%s " "Press Enter to exit"
-      read ans
-      exit
+      if [ $(grep -c 'Section "Module"' /etc/X11/xorg.conf) -ne 0 ]; then
+        echo 'Section "Module" was already in file. Please add the line:'
+        echo
+        echo '  Load "freetype"'
+        echo
+        echo "to the section and resume this script."
+        echo
+        printf "%s " "Press Enter to exit"
+        read ans
+        exit 0
+      else
+        echo 'Section "Module" was not already in file, adding the section with'
+        echo -n 'Load "freetype" line'
+        echo >> /etc/X11/xorg.conf
+        echo 'Section "Module"' >> /etc/X11/xorg.conf
+        echo '	Load "freetype"' >> /etc/X11/xorg.conf
+        echo "EndSection" >> /etc/X11/xorg.conf
+        echo "Finished."
+      fi
     fi
   else
     echo -n "File was not found, adding section to file ... "
@@ -224,7 +239,7 @@ if [ "$step" = "fonts" ]; then
   run_with_prompt "cp setup-files/54-font-family.conf $new_mono_avail_filename"
   read -p "Enter the font family name as listed in fc-list (e.g. 'Roboto Mono'): " font_family
   echo "Editing the $new_mono_avail_filename file to point to font family $font_family:"
-  run_with_prompt "sed -i'' -e 's/fontfamily/$font_family/g' $new_mono_avail_filename && rm $new_mono_avail_filename-e"
+  run_with_prompt "sed -i '' 's/fontfamily/$font_family/g' $new_mono_avail_filename"
   echo "Symlinking $new_mono_avail_filename to be pointed to by ../conf.d/$indexed_mono_filename"
   run_with_prompt "cd /usr/local/etc/fonts/conf.d && ln -s ../conf.avail/$indexed_mono_filename $indexed_mono_filename && cd /usr/home/$user"
   echo "If symlink was successful it should appear below,"
@@ -280,6 +295,29 @@ fi
 echo
 
 if [ "$step" = "configure-x-console" ]; then
+  echo "Beginning 'remap-left-capslock-to-ctrl' step"
+  run_with_prompt "sysrc keymap=us.ctrl"
+  echo 'Checking for line: Option "XKbOptions" "ctrl:nocaps" /etc/X11/xorg.conf'
+  if [ -f "/etc/X11/xorg.conf" ]; then
+    if [ $(grep -c 'Option "XKbOptions" "ctrl:nocaps"' /etc/X11/xorg.conf) -ne 0 ]; then
+      echo "Line was already in file, will not add it."
+      echo
+    else
+      echo "File was found but line was not in file."
+      run_with_prompt "echo >> /etc/X11/xorg.conf && cat setup-files/90-custom-kbd.conf >> /etc/X11/xorg.conf"
+    fi
+  else
+    echo -n "File was not found, adding section to file ... "
+    run_with_prompt "cat setup-files/90-custom-kbd.conf >> /etc/X11/xorg.conf"
+  fi
+  run_with_prompt "pkg install mkfontscale"
+  set_step "remap-left-capslock-to-ctrl"
+else
+  echo "Skipping the 'remap-left-capslock-to-ctrl' step since already completed."
+fi
+echo
+
+if [ "$step" = "remap-left-capslock-to-ctrl" ]; then
   echo "Beginning 'i3wm' step."
   echo "Installing i3wm and dmenu."
   run_with_prompt "pkg install -y i3 i3lock i3status"
@@ -301,9 +339,34 @@ echo
 
 if [ "$step" = "i3wm" ]; then
   echo "Beginning 'essential-progs' step."
-  echo "Installing rsync."
   run_with_prompt "pkg install rsync"
+  run_with_prompt "pkg install git"
+  run_with_prompt "pkg install vim"
+  run_with_prompt "pkg install vlc"
+  set_step "essential-progs"
 else
   echo "Skipping the 'essential-progs' step since already completed."
 fi
 echo
+
+if [ "$step" = "essential-progs" ]; then
+  echo "Beginning 'fusefs-exfat' step."
+  echo "Installing fusefs-exfat for mounting exFAT formatted drives"
+  run_with_prompt "pkg install fusefs-exfat"
+  run_with_prompt "kldload fusefs"
+  add_line_to_file_if_not_present 'fusefs_load="YES"' "/boot/loader.conf"
+  reboot_for_changes "fusefs kernel module installation"
+  set_step "fusefs-exfat"
+else
+ echo "Skipping the 'fusefs-exfat' step since already completed."
+fi
+
+if [ "$step" = "fusefs-exfat" ]; then
+  echo "Beginning 'poudriere' step."
+  echo "Installing poudriere for custom ports config and installation."
+  run_with_prompt "pkg install poudriere"
+  echo "!Important! Configure poudriere(8) in /usr/local/etc/poudriere.conf"
+  set_step "poudriere"
+else
+ echo "Skipping the 'poudriere' step since already completed."
+fi
