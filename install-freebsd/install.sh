@@ -1,7 +1,7 @@
 #!/bin/sh
 
 . ./common.sh
-ensure_working_directory
+ensure_working_directory "/usr/home/$(logname)"
 ensure_root
 
 run_with_prompt() {
@@ -57,11 +57,6 @@ add_line_to_file_if_not_present() {
     add_line_to_file "$line" "$filename"
     run_with_prompt "chown $user:$user $filename"
   fi
-}
-
-press_enter_to_continue() {
-  printf "%s " "Press Enter to continue"
-  read ans
 }
 
 set_step() {
@@ -271,7 +266,9 @@ if [ "$step" = "monospace" ]; then
 # use 256 color xterm
 export TERM="xterm-256color"
 # set urxvt as default terminal
-export TERMINAL="/usr/local/bin/urxvtc"' "$autostart_filename"
+export TERMINAL="/usr/local/bin/urxvtc"
+# add local bin repo to PATH
+PATH=${PATH}:/usr/local/$user/bin' "$autostart_filename"
     fi
   else
     echo "Could not find shell autostart script at $autostart_filename !"
@@ -317,17 +314,39 @@ else
 fi
 echo
 
+setup_i3_config() {
+  echo
+  echo -n "Setting up i3 config file with Win modkey and vim-style movement defaults ... "
+  cp /usr/local/etc/i3/config .config/i3
+  sed -i '' 's/# Font for window titles/set $mod Mod4\n\n# Font for window titles/g' .config/i3/config
+  sed -i '' 's/Mod1/$mod/g' .config/i3/config
+  sed -i '' 's/set $up l/set $up k/g' .config/i3/config
+  sed -i '' 's/set $down k/set $down j/g' .config/i3/config
+  sed -i '' 's/set $left j/set $left h/g' .config/i3/config
+  sed -i '' 's/set $right semicolon/set $right l/g' .config/i3/config
+  sed -i '' 's/exec i3-config-wizard//g' .config/i3/config
+  sed -i '' 's/bindsym $mod+h split h/bindsym $mod+s split h/g' .config/i3/config
+  sed -i '' 's/bindsym $mod+s layout stacking/bindsym $mod+t layout stacking/g' .config/i3/config
+  echo "Note that you can set the font size for status bar and window labels"
+  echo "by changing the line 'font pango:monospace 8' ."
+  chown $user:$user /usr/home/$user/.config/i3/config
+  echo "Succeeded."
+  echo
+}
+
 if [ "$step" = "remap-left-capslock-to-ctrl" ]; then
   echo "Beginning 'i3wm' step."
   echo "Installing i3wm and dmenu."
   run_with_prompt "pkg install -y i3 i3lock i3status"
   run_with_prompt "pkg install dmenu"
   add_line_to_file_if_not_present "/usr/local/bin/i3" ".xinitrc"
-  setup_i3_config
   echo "The contents of .xinitrc are now:"
   echo
   cat .xinitrc    
   echo
+  if prompt "Setup i3 config file?"; then
+    setup_i3_config
+  fi
   press_enter_to_continue
   echo "i3wm and dmenu have now been installed!"
   echo "Start i3wm with 'startx' after reboot to ensure config was successful."
@@ -341,7 +360,7 @@ if [ "$step" = "i3wm" ]; then
   echo "Beginning 'essential-progs' step."
   run_with_prompt "pkg install rsync"
   run_with_prompt "pkg install git"
-  run_with_prompt "pkg install vim"
+  run_with_prompt "pkg install neovim"
   run_with_prompt "pkg install vlc"
   set_step "essential-progs"
 else
@@ -369,4 +388,21 @@ if [ "$step" = "fusefs-exfat" ]; then
   set_step "poudriere"
 else
  echo "Skipping the 'poudriere' step since already completed."
+fi
+
+if [ "$step" = "poudriere" ]; then
+  echo "Beginning 'webcamd' step."
+  echo "Installing webcamd for USD webcam usage."
+  run_with_prompt "pkg install webcamd"
+  echo 'Adding webcamd_enable="YES" to rc.conf.'
+  run_with_prompt 'sysrc -f /etc/rc.conf webcamd_enable="YES"'
+  echo 'Appending cuse_load="YES" to /boot/loader.conf to enable cuse kernel module'
+  add_line_to_file_if_not_present 'cuse_load="YES"' "/boot/loader.conf"
+  echo "Adding user $user to 'webcamd' group to allow webcam usage ..."
+  run_with_prompt "pw groupmod webcamd -m $user"
+  echo "Installing video4linux packages"
+  run_with_prompt "pkg install v4l-utils v4l_compat"
+  set_step "webcamd"
+else
+  echo "Skipping the 'webcamd' step since already completed."
 fi

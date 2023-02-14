@@ -1,7 +1,7 @@
 #!/bin/sh
 
 . ./common.sh
-ensure_working_directory
+ensure_working_directory "/usr/home/$(logname)"
 ensure_root
 
 echo
