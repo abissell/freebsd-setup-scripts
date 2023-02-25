@@ -1,0 +1,1 @@
+alias nvim='JAVA_VERSION=19 nvim'

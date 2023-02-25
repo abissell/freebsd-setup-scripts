@@ -4,22 +4,6 @@
 ensure_working_directory "/usr/home/$(logname)"
 ensure_root
 
-run_with_prompt() {
-  local command="$1"
-  echo
-  read -p "Execute: '$command' ? " yn
-  case $yn in
-    [Yy]* ) 
-      eval "$command"
-      echo && echo "Command '$command' succeeded."
-    ;;
-    * ) 
-      echo "Ok, skipped."
-    ;;
-  esac
-  echo
-}
-
 reboot_for_changes() {
   local changes="$1"
   echo
@@ -98,6 +82,18 @@ fi
 echo
 
 if [ "$step" = "operatorgroup" ]; then
+  echo "Beginning 'timezone' step."
+  echo "Setting timezone to UTC"
+  run_with_prompt "tzsetup /usr/share/zoneinfo/UTC"
+  echo "Running 'adjkerntz -a' to update kernel with UTC timezone"
+  run_with_prompt "adjkerntz -a"
+  set_step "timezone"
+else
+  echo "Skipping the 'timezone' step since already completed."
+fi
+echo
+
+if [ "$step" = "timezone" ]; then
   echo "Beginning 'videogroup' step."
   echo "Adding user $user to 'video' group for GPU acceleration ..."
   run_with_prompt "pw groupmod video -m $user"
@@ -342,7 +338,7 @@ if [ "$step" = "remap-left-capslock-to-ctrl" ]; then
   add_line_to_file_if_not_present "/usr/local/bin/i3" ".xinitrc"
   echo "The contents of .xinitrc are now:"
   echo
-  cat .xinitrc    
+  cat .xinitrc
   echo
   if prompt "Setup i3 config file?"; then
     setup_i3_config
@@ -360,7 +356,9 @@ if [ "$step" = "i3wm" ]; then
   echo "Beginning 'essential-progs' step."
   run_with_prompt "pkg install rsync"
   run_with_prompt "pkg install git"
+  run_with_prompt "pkg install ripgrep"
   run_with_prompt "pkg install neovim"
+  run_with_prompt "pkg install xclip"
   run_with_prompt "pkg install vlc"
   set_step "essential-progs"
 else
@@ -369,6 +367,23 @@ fi
 echo
 
 if [ "$step" = "essential-progs" ]; then
+  echo "Beginning 'java-dev' step."
+  run_with_prompt "pkg install openjdk19"
+  if prompt "Clone eclipse.jdt.ls repo and build from source?"; then
+    run_with_prompt "cd /usr/local && git clone https://github.com/eclipse/eclipse.jdt.ls"
+    run_with_prompt "cd eclipse.jdt.ls && JAVA_VERSION=19 JAVA_HOME=/usr/local/openjdk19 ./mvnw clean verify"
+    echo
+    echo "Installation complete!"
+    run_with_prompt "cd /usr/home/$(logname)"
+    run_with_prompt "mkdir -p .local/share/eclipse || cp install-files/eclipse-java-google-style-4-spaces.xml .local/share/eclipse"
+  fi
+  set_step "java-dev"
+else
+    echo "Skipping the 'java-dev' step since already completed."
+fi
+echo
+
+if [ "$step" = "java-dev" ]; then
   echo "Beginning 'fusefs-exfat' step."
   echo "Installing fusefs-exfat for mounting exFAT formatted drives"
   run_with_prompt "pkg install fusefs-exfat"
@@ -381,6 +396,15 @@ else
 fi
 
 if [ "$step" = "fusefs-exfat" ]; then
+  echo "Beginning 'nvim-packer' step."
+  echo "Configuring 'packer' neovim plugin manager"
+  run_with_prompt "git clone --depth 1 https://github.com/wbthomason/packer.nvim ~/.local/share/nvim/site/pack/packer/start/packer.nvim"
+  set_step "nvim-packer"
+else
+  echo "Skipping the 'nvim-packer' step since already completed."
+fi
+
+if [ "$step" = "nvim-packer" ]; then
   echo "Beginning 'poudriere' step."
   echo "Installing poudriere for custom ports config and installation."
   run_with_prompt "pkg install poudriere"
