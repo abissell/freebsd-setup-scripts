@@ -13,6 +13,8 @@ return require('packer').startup(function(use)
 	  requires = { {'nvim-lua/plenary.nvim'} }
   }
 
+  use('nvim-telescope/telescope-ui-select.nvim')
+
   use 'rmehri01/onenord.nvim'
   require('onenord').setup()
 
@@ -25,8 +27,6 @@ return require('packer').startup(function(use)
 
   use('tpope/vim-fugitive')
 
-  use('mfussenegger/nvim-jdtls')
-
   use {
     'VonHeikemen/lsp-zero.nvim',
     branch = 'v1.x',
@@ -35,6 +35,7 @@ return require('packer').startup(function(use)
       {'neovim/nvim-lspconfig'},             -- Required
       {'williamboman/mason.nvim'},           -- Optional
       {'williamboman/mason-lspconfig.nvim'}, -- Optional
+      {'mfussenegger/nvim-jdtls'}, -- Extra Java features
 
       -- Autocompletion
       {'hrsh7th/nvim-cmp'},         -- Required
