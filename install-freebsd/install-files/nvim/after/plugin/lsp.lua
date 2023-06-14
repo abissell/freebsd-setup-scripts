@@ -10,7 +10,7 @@ local lsp = require('lsp-zero').preset({
 lsp.ensure_installed({
   'jdtls',
   'pylsp',
-  'ruby-lsp',
+  'ruby_ls',
   'sorbet'
 })
 
