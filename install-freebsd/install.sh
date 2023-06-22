@@ -356,8 +356,11 @@ if [ "$step" = "i3wm" ]; then
   echo "Beginning 'essential-progs' step."
   run_with_prompt "pkg install rsync"
   run_with_prompt "pkg install git"
+  run_with_prompt "pkg install lsof"
   run_with_prompt "pkg install ripgrep"
   run_with_prompt "pkg install neovim"
+  run_with_prompt "pkg install scrot"
+  run_with_prompt "pkg install npm"
   run_with_prompt "pkg install xclip"
   run_with_prompt "pkg install vlc"
   set_step "essential-progs"
@@ -367,17 +370,28 @@ fi
 echo
 
 if [ "$step" = "essential-progs" ]; then
-  echo "Beginning 'java-dev' step."
-  run_with_prompt "pkg install openjdk19"
-  if prompt "Clone eclipse.jdt.ls repo and build from source?"; then
-    run_with_prompt "cd /usr/local && git clone https://github.com/eclipse/eclipse.jdt.ls"
-    run_with_prompt "cd eclipse.jdt.ls && JAVA_VERSION=19 JAVA_HOME=/usr/local/openjdk19 ./mvnw clean verify"
-    echo
-    echo "Installation complete!"
-    run_with_prompt "cd /usr/home/$(logname)"
-    run_with_prompt "mkdir -p .local/share/eclipse || cp install-files/eclipse-java-google-style-4-spaces.xml .local/share/eclipse"
-  fi
-  set_step "java-dev"
+  echo "Beginning dev-setup step."
+  run_with_prompt "mkdir -p .config && cp -R install-files/nvim .config"
+  run_with_prompt "cat install-files/shrc-append >> .shrc"
+  run_with_prompt "cp install-files/sh_aliases .sh_aliases"
+  set_step "dev-setup"
+else
+  echo "Skipping the dev-setup step since already completed."
+fi
+echo
+
+if [ "$step" = "essential-progs" ]; then
+    echo "Beginning 'java-dev' step."
+    run_with_prompt "pkg install openjdk19"
+    if prompt "Clone eclipse.jdt.ls repo and build from source?"; then
+        run_with_prompt "cd /usr/local && git clone https://github.com/eclipse/eclipse.jdt.ls"
+        run_with_prompt "cd eclipse.jdt.ls && JAVA_VERSION=19 JAVA_HOME=/usr/local/openjdk19 ./mvnw clean verify"
+        echo
+        echo "Installation complete!"
+        run_with_prompt "cd /usr/home/$(logname)"
+        run_with_prompt "mkdir -p .local/share/eclipse || cp install-files/eclipse-java-google-style-4-spaces.xml .local/share/eclipse"
+    fi
+    set_step "java-dev"
 else
     echo "Skipping the 'java-dev' step since already completed."
 fi
