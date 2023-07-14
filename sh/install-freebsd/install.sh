@@ -1,53 +1,24 @@
 #!/bin/sh
 
+# FreeBSD installation install.sh
+# Copyright (C) 2023 Andrew Bissell
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published
+# by the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 . ./common.sh
 ensure_working_directory "/usr/home/$(logname)"
 ensure_root
-
-reboot_for_changes() {
-  local changes="$1"
-  echo
-  echo "Reboot needed for $changes to take effect."
-  read -p "Would you like to reboot now? " yn
-  case $yn in
-    [Yy]* ) echo "Rebooting ..." && sleep 3 && shutdown -r now;;
-    * ) echo "Ok, proceeding with setup script.";;
-  esac
-  echo
-}
-
-add_line_to_file() {
-  local line="$1"
-  local filename="$2"
-  run_with_prompt "echo '$line' >> $filename"
-}
-
-add_line_to_file_if_not_present() {
-  local line="$1"
-  local filename="$2"
-  echo
-  echo "Adding line: '$line' to file $filename if not present:"
-  if [ -f "$filename" ]; then
-    if [ $(grep -c "$line" $filename) -ne 0 ]; then
-      echo "Line was already in file, will not add it."
-      echo
-    else
-      echo "File was found but line was not in file."
-      echo "Adding the line to the file."
-      add_line_to_file "$line" "$filename"
-    fi
-  else
-    echo "File was not found, will add line and chown the file to user $user"
-    add_line_to_file "$line" "$filename"
-    run_with_prompt "chown $user:$user $filename"
-  fi
-}
-
-set_step() {
-  local newstep="$1"
-  echo "$newstep" > .setup-progress.txt
-  step="$newstep"
-}
 
 echo
 user=$(logname)
@@ -59,8 +30,8 @@ esac
 echo
 
 step=" "
-if [ -f "./.setup-progress.txt" ]; then
-  step=$(cat ./.setup-progress.txt)
+if [ -f "./.step.txt" ]; then
+  step=$(cat ./.step.txt)
   echo "Last completed step: $step"
 else
   echo "Had not yet completed any steps."
@@ -69,7 +40,7 @@ press_enter_to_continue
 
 run_with_prompt "ping -c 1 pkg.freebsd.org && pkg update && pkg upgrade"
 
-if [ "$step" = " " ]; then 
+if [ "$step" = " " ]; then
   echo "Beginning 'operatorgroup' step."
   echo "Adding user $user to 'operator' group to allow shutdown/reboot without sudo ..."
   run_with_prompt "pw groupmod operator -m $user"
@@ -121,13 +92,13 @@ if [ "$step" = "drm-kmod" ]; then
   echo "If your system uses a different GPU type, consult https://wiki.freebsd.org/Graphics to modify this step."
   read -p "Proceed to set kld_list+=i915kms in /etc/rc.conf? " yn
   case $yn in
-    [Yy]* ) 
+    [Yy]* )
       echo "Ok, proceeding."
       run_with_prompt "sysrc -f /etc/rc.conf kld_list+=i915kms"
       set_step "kld_list"
-      reboot_for_changes "update to graphics drivers"
+      reboot_freebsd_for_changes "update to graphics drivers"
     ;;
-    * ) 
+    * )
       echo "Ok, skipped." && echo
       set_step "kld_list"
     ;;
@@ -142,7 +113,7 @@ if [ "$step" = "kld_list" ]; then
   echo "Setting console font to terminus-b32 in rc.conf."
   run_with_prompt 'sysrc -f /etc/rc.conf allscreens_flags="-f terminus-b32"'
   set_step "console-font"
-  reboot_for_changes "new console font"
+  reboot_freebsd_for_changes "new console font"
 else
   echo "Skipping the 'console-font' step since already completed."
 fi
@@ -204,7 +175,7 @@ if [ "$step" = "xorg" ]; then
   run_with_prompt "pkg install mkfontscale"
   if [ ! -f ".xinitrc" ]; then
     echo ".xinitrc file did not exist, will copy it from template and chown to $user:$user"
-    run_with_prompt "cp install-files/xinitrc-template .xinitrc && chown $user:$user .xinitrc"
+    run_with_prompt "cp configs/xorg/xinitrc-template .xinitrc && chown $user:$user .xinitrc"
   fi
 
   for font_dir in $(find /usr/local/share/fonts -maxdepth 1 -mindepth 1)
@@ -227,7 +198,7 @@ if [ "$step" = "fonts" ]; then
   read -p "Enter the filename portion for monospace font family (e.g. 'roboto-mono'): " mono_filename
   indexed_mono_filename="54-$mono_filename.conf"
   new_mono_avail_filename="/usr/local/etc/fonts/conf.avail/$indexed_mono_filename"
-  run_with_prompt "cp install-files/54-font-family.conf $new_mono_avail_filename"
+  run_with_prompt "cp configs/freebsd/54-font-family.conf $new_mono_avail_filename"
   read -p "Enter the font family name as listed in fc-list (e.g. 'Roboto Mono'): " font_family
   echo "Editing the $new_mono_avail_filename file to point to font family $font_family:"
   run_with_prompt "sed -i '' 's/fontfamily/$font_family/g' $new_mono_avail_filename"
@@ -279,7 +250,7 @@ PATH=${PATH}:/usr/local/$user/bin' "$autostart_filename"
   echo "Note! Some defaults in this file may need to be adjusted."
   echo "To find the correct DPI for the file, start an X session"
   echo "with 'startx' and run 'xdpyinfo | grep -B2 resolution'"
-  run_with_prompt "cp install-files/Xresources .Xresources && chown $user:$user .Xresources"
+  run_with_prompt "cp configs/xorg/Xresources .Xresources && chown $user:$user .Xresources"
   set_step "configure-x-console"
   echo
 else
@@ -292,16 +263,16 @@ if [ "$step" = "configure-x-console" ]; then
   run_with_prompt "sysrc keymap=us.ctrl"
   echo 'Checking for line: Option "XKbOptions" "ctrl:nocaps" /etc/X11/xorg.conf'
   if [ -f "/etc/X11/xorg.conf" ]; then
-    if [ $(grep -c 'Option "XKbOptions" "ctrl:nocaps"' /etc/X11/xorg.conf) -ne 0 ]; then
+    if [ grep -q 'Option "XKbOptions" "ctrl:nocaps"' /etc/X11/xorg.conf ]; then
       echo "Line was already in file, will not add it."
       echo
     else
       echo "File was found but line was not in file."
-      run_with_prompt "echo >> /etc/X11/xorg.conf && cat install-files/90-custom-kbd.conf >> /etc/X11/xorg.conf"
+      run_with_prompt "echo >> /etc/X11/xorg.conf && cat configs/freebsd/90-custom-kbd.conf >> /etc/X11/xorg.conf"
     fi
   else
     echo -n "File was not found, adding section to file ... "
-    run_with_prompt "cat install-files/90-custom-kbd.conf >> /etc/X11/xorg.conf"
+    run_with_prompt "cat configs/freebsd/90-custom-kbd.conf >> /etc/X11/xorg.conf"
   fi
   run_with_prompt "pkg install mkfontscale"
   set_step "remap-left-capslock-to-ctrl"
@@ -371,9 +342,9 @@ echo
 
 if [ "$step" = "essential-progs" ]; then
   echo "Beginning dev-setup step."
-  run_with_prompt "mkdir -p .config && cp -R install-files/nvim .config"
-  run_with_prompt "cat install-files/shrc-append >> .shrc"
-  run_with_prompt "cp install-files/sh_aliases .sh_aliases"
+  run_with_prompt "mkdir -p .config && cp -R configs/nvim .config"
+  run_with_prompt "cat configs/freebsd/shrc-append >> .shrc"
+  run_with_prompt "sh scripts/sh/apply-configs-updates.sh"
   set_step "dev-setup"
 else
   echo "Skipping the dev-setup step since already completed."
@@ -403,7 +374,7 @@ if [ "$step" = "java-dev" ]; then
   run_with_prompt "pkg install fusefs-exfat"
   run_with_prompt "kldload fusefs"
   add_line_to_file_if_not_present 'fusefs_load="YES"' "/boot/loader.conf"
-  reboot_for_changes "fusefs kernel module installation"
+  reboot_freebsd_for_changes "fusefs kernel module installation"
   set_step "fusefs-exfat"
 else
  echo "Skipping the 'fusefs-exfat' step since already completed."
